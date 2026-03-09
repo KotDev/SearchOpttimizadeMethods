@@ -6,6 +6,7 @@ import vtk
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 from src.labs.lab1.lab1 import Lab1Widget
+from src.labs.lab2.lab2 import Lab2Widget
 
 
 class VTKWidget(QVTKRenderWindowInteractor):
@@ -731,12 +732,12 @@ class MainWindow(QMainWindow):
     def setup_labs(self):
         """Настраивает список лабораторных работ"""
         # Импортируем здесь, чтобы избежать циклических импортов
-        from lab_base_widget import LabBaseWidget
+        from src.lab_base_widget import LabBaseWidget
 
         # Добавляем названия в комбобокс
         self.lab_selector.addItems([
             "Лаб 1: Градиентные методы оптимизации",
-            "Лаб 2: Объемные тела",
+            "Лаб 2: Квадратичное программирование",
             "Лаб 3: Векторное поле",
             "Лаб 4: Изоповерхности",
             "Лаб 5: Анимация"
@@ -745,14 +746,19 @@ class MainWindow(QMainWindow):
         # Создаем виджеты для лабораторных
         lab_widgets_list = []
 
-        # Лабораторная 1 - ваша реализация
+        # Лабораторная 1 - градиентные методы
         lab1 = Lab1Widget()
         lab1.vtk_widget = self.vtk_widget
         lab_widgets_list.append(lab1)
 
+        # Лабораторная 2 - методы прямого поиска
+        lab2 = Lab2Widget()
+        lab2.vtk_widget = self.vtk_widget
+        lab_widgets_list.append(lab2)
+
         # Остальные - заглушки
-        for i in range(1, 5):
-            lab_widget = LabBaseWidget(i + 1, f"Лабораторная {i + 1}")
+        for i in range(3, 6):
+            lab_widget = LabBaseWidget(i, f"Лабораторная {i}")
             lab_widget.set_description("Здесь будет описание лабораторной работы.\n\n"
                                        "Добавьте поля ввода и логику расчета в соответствующем классе.")
             lab_widget.vtk_widget = self.vtk_widget
@@ -783,6 +789,12 @@ class MainWindow(QMainWindow):
                     f"Исследование методов: градиентный спуск, наискорейший спуск, "
                     f"покоординатный спуск, метод Ньютона-Рафсона.\n"
                     f"Выберите функцию и параметры, нажмите 'Выполнить расчет'."
+                )
+            elif index == 1:
+                self.info_text.setText(
+                    f"Активная лабораторная работа: №{lab_number} - Квадратичное программирование\n"
+                    f"Метод искусственных переменных. min 0.5 x'Qx + c'x при Ax ≤ b, x ≥ 0.\n"
+                    f"Выберите задачу и нажмите 'Выполнить расчет'."
                 )
             else:
                 self.info_text.setText(
