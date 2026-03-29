@@ -7,6 +7,7 @@ from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 from src.labs.lab1.lab1 import Lab1Widget
 from src.labs.lab2.lab2 import Lab2Widget
+from src.labs.lab3.lab3 import Lab3Widget
 
 
 class VTKWidget(QVTKRenderWindowInteractor):
@@ -738,7 +739,7 @@ class MainWindow(QMainWindow):
         self.lab_selector.addItems([
             "Лаб 1: Градиентные методы оптимизации",
             "Лаб 2: Квадратичное программирование",
-            "Лаб 3: Векторное поле",
+            "Лаб 3: Операторы генетического алгоритма",
             "Лаб 4: Изоповерхности",
             "Лаб 5: Анимация"
         ])
@@ -755,6 +756,10 @@ class MainWindow(QMainWindow):
         lab2 = Lab2Widget()
         lab2.vtk_widget = self.vtk_widget
         lab_widgets_list.append(lab2)
+
+        lab3 = Lab3Widget()
+        lab3.vtk_widget = self.vtk_widget  # Важно для доступа к renderer
+        lab_widgets_list.append(lab3)
 
         # Остальные - заглушки
         for i in range(3, 6):
@@ -795,6 +800,12 @@ class MainWindow(QMainWindow):
                     f"Активная лабораторная работа: №{lab_number} - Квадратичное программирование\n"
                     f"Метод искусственных переменных. min 0.5 x'Qx + c'x при Ax ≤ b, x ≥ 0.\n"
                     f"Выберите задачу и нажмите 'Выполнить расчет'."
+                )
+            elif index == 2:
+                self.info_text.setText(
+                    f"Активная лабораторная работа: №{lab_number} - Генетический алгоритм\n"
+                    f"Исследование эволюционных методов: селекция, скрещивание, мутация.\n"
+                    f"Используйте слайдер для просмотра движения популяции по итерациям."
                 )
             else:
                 self.info_text.setText(
