@@ -8,6 +8,7 @@ from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from src.labs.lab1.lab1 import Lab1Widget
 from src.labs.lab2.lab2 import Lab2Widget
 from src.labs.lab3.lab3 import Lab3Widget
+from src.labs.lab4.lab4 import Lab4Widget
 
 
 class VTKWidget(QVTKRenderWindowInteractor):
@@ -740,7 +741,7 @@ class MainWindow(QMainWindow):
             "Лаб 1: Градиентные методы оптимизации",
             "Лаб 2: Квадратичное программирование",
             "Лаб 3: Операторы генетического алгоритма",
-            "Лаб 4: Изоповерхности",
+            "Лаб 4: Алгоритм роя частиц",
             "Лаб 5: Анимация"
         ])
 
@@ -760,6 +761,10 @@ class MainWindow(QMainWindow):
         lab3 = Lab3Widget()
         lab3.vtk_widget = self.vtk_widget  # Важно для доступа к renderer
         lab_widgets_list.append(lab3)
+
+        lab4 = Lab4Widget()
+        lab4.vtk_widget = self.vtk_widget
+        lab_widgets_list.append(lab4)
 
         # Остальные - заглушки
         for i in range(3, 6):
