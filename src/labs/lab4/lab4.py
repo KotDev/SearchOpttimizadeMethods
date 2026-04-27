@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt
 from src.lab_base_widget import LabBaseWidget
 from .pso import ParticleSwarmOptimization
+from .pso_worker import PSOWorker
 from src.test_functions.test_func_fabric import TestFunctionFactory
 
 
@@ -20,6 +21,7 @@ class Lab4Widget(LabBaseWidget):
         self.z_min = 0
         self.z_range = 1.0
         self.current_function = None
+        self.pso_worker = None
         
         self.setup_custom_ui()
 
@@ -54,6 +56,30 @@ class Lab4Widget(LabBaseWidget):
             "Социальный (c2):", QDoubleSpinBox, value=2.05, range=(0.5, 4.0), step=0.05,
             tooltip="Влияние глобального лучшего решения роя"
         )
+
+        viz_group = QGroupBox("Визуализация")
+        viz_layout = QHBoxLayout()
+        viz_group.setLayout(viz_layout)
+
+        self.real_time_checkbox = QCheckBox("Реальное время (симуляция)")
+        self.real_time_checkbox.setToolTip("Показывает процесс оптимизации пошагово")
+        self.real_time_checkbox.stateChanged.connect(self.toggle_real_time_mode)
+
+        self.speed_label = QLabel("Скорость (мс):")
+        self.speed_slider = QSlider(Qt.Orientation.Horizontal)
+        self.speed_slider.setRange(20, 500)
+        self.speed_slider.setValue(100)
+        self.speed_slider.setEnabled(False)
+        self.speed_slider.valueChanged.connect(self.on_speed_changed)
+
+        self.speed_value_label = QLabel("100")
+        self.speed_value_label.setFixedWidth(35)
+
+        viz_layout.addWidget(self.real_time_checkbox)
+        viz_layout.addWidget(self.speed_label)
+        viz_layout.addWidget(self.speed_slider)
+        viz_layout.addWidget(self.speed_value_label)
+        self.inputs_layout.addWidget(viz_group)
         
         # 4. Слайдер итераций
         label_slider = QLabel("Просмотр эволюции (итерации):")
@@ -71,13 +97,24 @@ class Lab4Widget(LabBaseWidget):
         # Привязываем кнопку расчета
         self.btn_calculate.clicked.connect(self.calculate_pso)
 
+    def on_speed_changed(self, value):
+        self.speed_value_label.setText(str(value))
+
+    def toggle_real_time_mode(self, state):
+        enabled = (state == Qt.CheckState.Checked.value)
+        self.speed_slider.setEnabled(enabled)
+        self.speed_label.setEnabled(enabled)
+        self.speed_value_label.setEnabled(enabled)
+
     def calculate_pso(self):
+        self.stop_simulation()
+
         # 1. Подготовка функции
         self.current_function = self.functions[self.func_combo.currentIndex()]
         bounds = self.current_function.bounds
 
         # 2. Запуск алгоритма роя частиц
-        pso = ParticleSwarmOptimization(
+        self.pso = ParticleSwarmOptimization(
             func=self.current_function,
             bounds=bounds,
             pop_size=self.pop_size_input.value(),
@@ -85,18 +122,99 @@ class Lab4Widget(LabBaseWidget):
             cognitive_weight=self.cognitive_input.value(),
             social_weight=self.social_input.value()
         )
-        
-        generations = self.gens_input.value()
-        pso.solve(generations=generations, verbose=True)
-        
-        self.history = pso.history
-        best_position, best_value = pso.get_best_solution()
 
         # 3. Визуализация поверхности (нормализованная)
         self.vtk_widget.clear_scene()
         self.plot_normalized_surface(bounds)
 
+        if self.real_time_checkbox.isChecked():
+            self.start_real_time_simulation()
+            return
+
+        generations = self.gens_input.value()
+        self.history = self.pso.solve(generations=generations, verbose=True)
+        best_position, best_value = self.pso.get_best_solution()
+
         # 4. Вывод текстового результата
+        self.display_results(best_position, best_value)
+        
+        # 5. Отрисовка точки на графике
+        self.plot_best_point(best_position, best_value)
+        self.plot_global_best_trajectory()
+
+        # 6. Настройка слайдера
+        self.iter_slider.setEnabled(True)
+        self.iter_slider.setRange(0, len(self.history) - 1)
+        self.iter_slider.setValue(len(self.history) - 1)
+        self.update_iteration(self.iter_slider.value())
+
+    def start_real_time_simulation(self):
+        self.is_simulating = True
+        self.history = []
+        self.btn_calculate.setEnabled(False)
+        self.func_combo.setEnabled(False)
+        self.real_time_checkbox.setEnabled(False)
+
+        self.pso_worker = PSOWorker(
+            self.pso,
+            generations=self.gens_input.value(),
+            delay_ms=self.speed_slider.value(),
+        )
+        self.pso_worker.iteration_update.connect(self.on_worker_iteration)
+        self.pso_worker.finished_signal.connect(self.on_worker_finished)
+        self.pso_worker.start()
+
+    def stop_simulation(self):
+        self.is_simulating = False
+        if self.pso_worker is not None:
+            self.pso_worker.stop()
+            self.pso_worker.wait(2000)
+            self.pso_worker = None
+        self.btn_calculate.setEnabled(True)
+        self.func_combo.setEnabled(True)
+        if hasattr(self, "real_time_checkbox"):
+            self.real_time_checkbox.setEnabled(True)
+
+    def on_worker_iteration(self, iteration, positions, best_position, best_value):
+        if not self.is_simulating:
+            return
+
+        self.history.append(np.array(positions))
+        self.iter_slider.blockSignals(True)
+        self.iter_slider.setEnabled(True)
+        self.iter_slider.setRange(0, len(self.history) - 1)
+        self.iter_slider.setValue(iteration)
+        self.iter_slider.blockSignals(False)
+
+        self.update_iteration(iteration)
+        self.plot_best_point(best_position, best_value)
+        self.info_label.setText(
+            f"📊 Итерация {iteration} | Лучшее значение: {best_value:.10f} | Частиц: {len(positions)}"
+        )
+
+    def on_worker_finished(self, best_position, best_value, history):
+        self.history = history
+        if self.history:
+            self.iter_slider.setEnabled(True)
+            self.iter_slider.setRange(0, len(self.history) - 1)
+            self.iter_slider.setValue(len(self.history) - 1)
+
+        if best_position is not None:
+            self.plot_best_point(best_position, best_value)
+            self.display_results(best_position, best_value)
+
+        self.btn_calculate.setEnabled(True)
+        self.func_combo.setEnabled(True)
+        self.real_time_checkbox.setEnabled(True)
+        self.is_simulating = False
+
+        if self.pso_worker is not None:
+            self.pso_worker.wait(1000)
+            self.pso_worker = None
+
+        self.info_label.setText("✅ Симуляция завершена!")
+
+    def display_results(self, best_position, best_value):
         self.clear_results()
         
         # Дополнительная информация о коэффициентах
@@ -125,19 +243,7 @@ class Lab4Widget(LabBaseWidget):
             </div>
         """
         self.add_result_text(res_text)
-        
-        # Обновляем информационную метку
         self.info_label.setText(f"🎯 Лучшее значение: {best_value:.12f}")
-
-        # 5. Отрисовка точки на графике
-        self.plot_best_point(best_position, best_value)
-        self.plot_global_best_trajectory()
-
-        # 6. Настройка слайдера
-        self.iter_slider.setEnabled(True)
-        self.iter_slider.setRange(0, len(self.history) - 1)
-        self.iter_slider.setValue(len(self.history) - 1)
-        self.update_iteration(self.iter_slider.value())
 
     def plot_normalized_surface(self, bounds):
         """Отрисовка поверхности функции с нормализацией высоты"""

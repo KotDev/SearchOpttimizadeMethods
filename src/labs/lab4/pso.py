@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Callable, Optional
 
 
 class Particle:
@@ -118,7 +119,7 @@ class ParticleSwarmOptimization:
         new_velocity = np.clip(new_velocity, -max_velocity, max_velocity)
         particle.velocity = new_velocity
         
-    def solve(self, generations=50, verbose=False):
+    def solve(self, generations=50, verbose=False, generation_callback: Optional[Callable] = None):
         """
         Запуск алгоритма оптимизации
         
@@ -151,6 +152,15 @@ class ParticleSwarmOptimization:
             # Сохраняем текущее облако частиц для визуализации
             self.history.append(np.array([p.position.copy() for p in swarm]))
             self.best_history.append(self.best_global_value)
+            if generation_callback is not None and self.best_global_position is not None:
+                should_continue = generation_callback(
+                    generation,
+                    self.history[-1].copy(),
+                    self.best_global_position.copy(),
+                    float(self.best_global_value),
+                )
+                if should_continue is False:
+                    break
             
             if verbose and generation % 10 == 0:
                 print(f"Поколение {generation}: лучшее значение = {self.best_global_value:.10f}")
@@ -174,6 +184,13 @@ class ParticleSwarmOptimization:
         # Сохраняем финальное поколение
         self.history.append(np.array([p.position.copy() for p in swarm]))
         self.best_history.append(self.best_global_value)
+        if generation_callback is not None and self.best_global_position is not None:
+            generation_callback(
+                len(self.history) - 1,
+                self.history[-1].copy(),
+                self.best_global_position.copy(),
+                float(self.best_global_value),
+            )
         
         if verbose:
             print(f"\nОптимизация завершена!")

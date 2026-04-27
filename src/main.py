@@ -9,6 +9,10 @@ from src.labs.lab1.lab1 import Lab1Widget
 from src.labs.lab2.lab2 import Lab2Widget
 from src.labs.lab3.lab3 import Lab3Widget
 from src.labs.lab4.lab4 import Lab4Widget
+from src.labs.lab5.lab5 import Lab5Widget
+from src.labs.lab6.lab6 import Lab6Widget
+from src.labs.lab7.lab7 import Lab7Widget
+from src.labs.lab8.lab8 import Lab8Widget
 
 
 class VTKWidget(QVTKRenderWindowInteractor):
@@ -742,7 +746,10 @@ class MainWindow(QMainWindow):
             "Лаб 2: Квадратичное программирование",
             "Лаб 3: Операторы генетического алгоритма",
             "Лаб 4: Алгоритм роя частиц",
-            "Лаб 5: Анимация"
+            "Лаб 5: Алгоритм пчелиного роя",
+            "Лаб 6: Иммунная сеть",
+            "Лаб 7: Бактериальная оптимизация",
+            "Лаб 8: Гибридный алгоритм PSO + Bees",
         ])
 
         # Создаем виджеты для лабораторных
@@ -766,13 +773,21 @@ class MainWindow(QMainWindow):
         lab4.vtk_widget = self.vtk_widget
         lab_widgets_list.append(lab4)
 
-        # Остальные - заглушки
-        for i in range(3, 6):
-            lab_widget = LabBaseWidget(i, f"Лабораторная {i}")
-            lab_widget.set_description("Здесь будет описание лабораторной работы.\n\n"
-                                       "Добавьте поля ввода и логику расчета в соответствующем классе.")
-            lab_widget.vtk_widget = self.vtk_widget
-            lab_widgets_list.append(lab_widget)
+        lab5 = Lab5Widget()
+        lab5.vtk_widget = self.vtk_widget
+        lab_widgets_list.append(lab5)
+
+        lab6 = Lab6Widget()
+        lab6.vtk_widget = self.vtk_widget
+        lab_widgets_list.append(lab6)
+
+        lab7 = Lab7Widget()
+        lab7.vtk_widget = self.vtk_widget
+        lab_widgets_list.append(lab7)
+
+        lab8 = Lab8Widget()
+        lab8.vtk_widget = self.vtk_widget
+        lab_widgets_list.append(lab8)
 
         # Добавляем виджеты в stacked widget
         for widget in lab_widgets_list:
@@ -811,6 +826,36 @@ class MainWindow(QMainWindow):
                     f"Активная лабораторная работа: №{lab_number} - Генетический алгоритм\n"
                     f"Исследование эволюционных методов: селекция, скрещивание, мутация.\n"
                     f"Используйте слайдер для просмотра движения популяции по итерациям."
+                )
+            elif index == 3:
+                self.info_text.setText(
+                    f"Активная лабораторная работа: №{lab_number} - Алгоритм роя частиц\n"
+                    f"Модель коллективного поиска на основе личного и глобального лучшего решения.\n"
+                    f"Можно запускать как в пакетном режиме, так и в режиме реального времени."
+                )
+            elif index == 4:
+                self.info_text.setText(
+                    f"Активная лабораторная работа: №{lab_number} - Алгоритм пчелиного роя\n"
+                    f"Разведчики и рабочие пчелы исследуют перспективные области поиска.\n"
+                    f"Поддерживается realtime-визуализация с управляемой камерой."
+                )
+            elif index == 5:
+                self.info_text.setText(
+                    f"Активная лабораторная работа: №{lab_number} - Иммунная сеть\n"
+                    f"Клональная селекция, гипермутация и супрессия близких антител.\n"
+                    f"Используйте realtime-режим для просмотра эволюции популяции."
+                )
+            elif index == 6:
+                self.info_text.setText(
+                    f"Активная лабораторная работа: №{lab_number} - Бактериальная оптимизация\n"
+                    f"Бактерии выполняют chemotaxis, размножение и рассеивание в поиске минимума.\n"
+                    f"Поддерживается пошаговая realtime-визуализация."
+                )
+            elif index == 7:
+                self.info_text.setText(
+                    f"Активная лабораторная работа: №{lab_number} - Гибридный алгоритм PSO + Bees\n"
+                    f"Сначала выполняется глобальный поиск роем частиц, затем локальное уточнение пчелиным роем.\n"
+                    f"Поддерживаются обычный и realtime-режимы визуализации."
                 )
             else:
                 self.info_text.setText(

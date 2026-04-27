@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Callable, Optional
 
 
 class GeneticAlgorithm:
@@ -33,7 +34,7 @@ class GeneticAlgorithm:
             ind = np.clip(ind, self.bounds[:, 0], self.bounds[:, 1])
         return ind
 
-    def solve(self, generations=50):
+    def solve(self, generations=50, generation_callback: Optional[Callable] = None):
         self.history = []
         # Инициализация
         pop = np.random.uniform(self.bounds[:, 0], self.bounds[:, 1], (self.pop_size, 2))
@@ -41,6 +42,14 @@ class GeneticAlgorithm:
         for g in range(generations):
             # Сохраняем текущее «облако» для визуализации
             self.history.append(pop.copy())
+            if generation_callback is not None:
+                fitness = np.array([self.func(p) for p in pop])
+                best_idx = np.argmin(fitness)
+                should_continue = generation_callback(
+                    g, pop.copy(), pop[best_idx].copy(), float(fitness[best_idx])
+                )
+                if should_continue is False:
+                    break
 
             fitness = np.array([self.func(p) for p in pop])
             new_pop = []
@@ -57,4 +66,7 @@ class GeneticAlgorithm:
 
             pop = np.array(new_pop)
 
-        return self.history
+        final_fitness = np.array([self.func(p) for p in pop])
+        best_idx = np.argmin(final_fitness)
+
+        return pop.copy(), float(final_fitness[best_idx]), pop[best_idx].copy(), self.history

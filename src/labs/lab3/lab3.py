@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt
 from src.lab_base_widget import LabBaseWidget
 from .ga import GeneticAlgorithm
+from .ga_worker import GeneticAlgorithmWorker
 from src.test_functions.test_func_fabric import TestFunctionFactory
 
 class Lab3Widget(LabBaseWidget):
@@ -18,6 +19,8 @@ class Lab3Widget(LabBaseWidget):
         self.z_min = 0
         self.z_range = 1.0
         self.current_function = None
+        self.info_label = None
+        self.ga_worker = None
         
         self.setup_custom_ui()
 
@@ -36,6 +39,29 @@ class Lab3Widget(LabBaseWidget):
         self.pop_size_input = self.add_input_field("Популяция:", QSpinBox, value=50, range=(10, 300))
         self.gens_input = self.add_input_field("Поколений:", QSpinBox, value=50, range=(1, 500))
         self.mut_rate_input = self.add_input_field("Мутация:", QDoubleSpinBox, value=0.1, range=(0, 1))
+
+        viz_group = QGroupBox("Визуализация")
+        viz_layout = QHBoxLayout()
+        viz_group.setLayout(viz_layout)
+
+        self.real_time_checkbox = QCheckBox("Реальное время (симуляция)")
+        self.real_time_checkbox.stateChanged.connect(self.toggle_real_time_mode)
+
+        self.speed_label = QLabel("Скорость (мс):")
+        self.speed_slider = QSlider(Qt.Orientation.Horizontal)
+        self.speed_slider.setRange(20, 500)
+        self.speed_slider.setValue(100)
+        self.speed_slider.setEnabled(False)
+        self.speed_slider.valueChanged.connect(self.on_speed_changed)
+
+        self.speed_value_label = QLabel("100")
+        self.speed_value_label.setFixedWidth(35)
+
+        viz_layout.addWidget(self.real_time_checkbox)
+        viz_layout.addWidget(self.speed_label)
+        viz_layout.addWidget(self.speed_slider)
+        viz_layout.addWidget(self.speed_value_label)
+        self.inputs_layout.addWidget(viz_group)
         
         # 4. Слайдер итераций
         label_slider = QLabel("Просмотр эволюции (поколения):")
@@ -45,36 +71,128 @@ class Lab3Widget(LabBaseWidget):
         self.iter_slider.valueChanged.connect(self.update_iteration)
         self.inputs_layout.addWidget(self.iter_slider)
 
+        self.info_label = QLabel()
+        self.info_label.setStyleSheet("color: #2c3e50; font-size: 10pt; margin-top: 10px;")
+        self.inputs_layout.addWidget(self.info_label)
+
         # Привязываем кнопку расчета (в базе она обычно self.btn_calculate)
         self.btn_calculate.clicked.connect(self.calculate_ga)
 
+    def on_speed_changed(self, value):
+        self.speed_value_label.setText(str(value))
+
+    def toggle_real_time_mode(self, state):
+        enabled = (state == Qt.CheckState.Checked.value)
+        self.speed_slider.setEnabled(enabled)
+        self.speed_label.setEnabled(enabled)
+        self.speed_value_label.setEnabled(enabled)
+
     def calculate_ga(self):
+        self.stop_simulation()
+
         # 1. Подготовка функции
         self.current_function = self.functions[self.func_combo.currentIndex()]
         bounds = self.current_function.bounds
 
         # 2. Запуск алгоритма
-        ga = GeneticAlgorithm(
+        self.ga = GeneticAlgorithm(
             func=self.current_function,
             bounds=bounds,
             pop_size=self.pop_size_input.value(),
             mut_rate=self.mut_rate_input.value()
         )
-        ga.solve(generations=self.gens_input.value())
-        self.history = ga.history
 
         # 3. Визуализация поверхности (нормализованная)
         self.vtk_widget.clear_scene()
         self.plot_normalized_surface(bounds)
 
-        # 4. Поиск лучшей точки (Минимума)
-        last_pop = self.history[-1]
-        fitness = np.array([self.current_function(p) for p in last_pop])
-        best_idx = np.argmin(fitness)
-        best_point = last_pop[best_idx]
-        best_value = fitness[best_idx]
+        if self.real_time_checkbox.isChecked():
+            self.start_real_time_simulation()
+            return
 
+        _, best_value, best_point, history = self.ga.solve(generations=self.gens_input.value())
+        self.history = history
+
+        # 4. Поиск лучшей точки (Минимума)
         # 5. Вывод текстового результата
+        self.display_results(best_point, best_value)
+
+        # 6. Отрисовка точки на графике
+        self.plot_best_point(best_point, best_value)
+
+        # 7. Настройка слайдера
+        self.iter_slider.setEnabled(True)
+        self.iter_slider.setRange(0, len(self.history) - 1)
+        self.iter_slider.setValue(len(self.history) - 1)
+        self.update_iteration(self.iter_slider.value())
+
+    def start_real_time_simulation(self):
+        self.is_simulating = True
+        self.history = []
+        self.btn_calculate.setEnabled(False)
+        self.func_combo.setEnabled(False)
+        self.real_time_checkbox.setEnabled(False)
+
+        self.ga_worker = GeneticAlgorithmWorker(
+            self.ga,
+            generations=self.gens_input.value(),
+            delay_ms=self.speed_slider.value(),
+        )
+        self.ga_worker.generation_update.connect(self.on_worker_generation)
+        self.ga_worker.finished_signal.connect(self.on_worker_finished)
+        self.ga_worker.start()
+
+    def stop_simulation(self):
+        self.is_simulating = False
+        if self.ga_worker is not None:
+            self.ga_worker.stop()
+            self.ga_worker.wait(2000)
+            self.ga_worker = None
+        self.btn_calculate.setEnabled(True)
+        self.func_combo.setEnabled(True)
+        if hasattr(self, "real_time_checkbox"):
+            self.real_time_checkbox.setEnabled(True)
+
+    def on_worker_generation(self, generation, population, best_point, best_value):
+        if not self.is_simulating:
+            return
+
+        self.history.append(np.array(population))
+        self.iter_slider.blockSignals(True)
+        self.iter_slider.setEnabled(True)
+        self.iter_slider.setRange(0, len(self.history) - 1)
+        self.iter_slider.setValue(generation)
+        self.iter_slider.blockSignals(False)
+
+        self.update_iteration(generation)
+        self.plot_best_point(best_point, best_value)
+        self.info_label.setText(
+            f"🧬 Поколение {generation} | Лучшее значение: {best_value:.10f} | Особей: {len(population)}"
+        )
+
+    def on_worker_finished(self, best_point, best_value, history):
+        self.history = history
+        if self.history:
+            self.iter_slider.setEnabled(True)
+            self.iter_slider.setRange(0, len(self.history) - 1)
+            self.iter_slider.setValue(len(self.history) - 1)
+
+        if best_point is not None:
+            self.plot_best_point(best_point, best_value)
+            self.display_results(best_point, best_value)
+
+        self.btn_calculate.setEnabled(True)
+        self.func_combo.setEnabled(True)
+        self.real_time_checkbox.setEnabled(True)
+        self.is_simulating = False
+
+        if self.ga_worker is not None:
+            self.ga_worker.wait(1000)
+            self.ga_worker = None
+
+        self.info_label.setText("✅ Симуляция завершена!")
+
+    def display_results(self, best_point, best_value):
         self.clear_results()
         res_text = f"""
             <div style='color: #2c3e50;'>
@@ -88,15 +206,7 @@ class Lab3Widget(LabBaseWidget):
             </div>
         """
         self.add_result_text(res_text)
-
-        # 6. Отрисовка точки на графике
-        self.plot_best_point(best_point, best_value)
-
-        # 7. Настройка слайдера
-        self.iter_slider.setEnabled(True)
-        self.iter_slider.setRange(0, len(self.history) - 1)
-        self.iter_slider.setValue(len(self.history) - 1) # Сразу к последнему
-        self.update_iteration(self.iter_slider.value())
+        self.info_label.setText(f"🎯 Лучшее значение: {best_value:.10f}")
 
     def plot_normalized_surface(self, bounds):
         res = 60
